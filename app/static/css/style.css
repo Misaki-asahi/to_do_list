@@ -1,0 +1,957 @@
+/* ==========================================================================
+   style.css -- 全局样式
+   设计思路：
+     1. 用 CSS 变量（--xxx）定义颜色，以后换主题只改最上面几行；
+     2. 先写"通用组件"（卡片、按钮、标签），页面各处的样式尽量复用，
+        避免以后一半页面好看、一半页面难看。
+   ========================================================================== */
+
+:root {
+  --bg: #f4f6fb;
+  --card: #ffffff;
+  --text: #1f2937;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --ok: #16a34a;
+  --bad: #dc2626;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 8px 24px rgba(0, 0, 0, 0.04);
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Microsoft YaHei", "PingFang SC", -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* ---------- 顶部导航 ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  height: 60px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand { font-size: 17px; font-weight: 700; }
+
+.nav a {
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  margin-left: 4px;
+  font-size: 14px;
+}
+
+.nav a:hover { background: var(--bg); color: var(--text); }
+.nav a.active { background: var(--primary); color: #fff; }
+
+/* ---------- 内容区 ---------- */
+.container { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px 26px;
+  margin-bottom: 20px;
+}
+
+h1 { font-size: 22px; margin: 0 0 8px; }
+h2 { font-size: 17px; margin: 0 0 12px; }
+.muted { color: var(--text-muted); font-size: 14px; margin-top: 0; }
+
+/* ---------- 自检清单 ---------- */
+.checklist { margin: 18px 0; }
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 14px;
+}
+
+.check-row:last-child { border-bottom: none; }
+
+.dot {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: #d1d5db;
+  flex: 0 0 auto;
+}
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15); }
+.dot.bad { background: var(--bad); box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15); }
+
+/* ---------- 按钮 ---------- */
+.btn {
+  display: inline-block;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn:hover { background: var(--primary-dark); }
+.btn:active { transform: translateY(1px); }
+
+/* ---------- 输出框 ---------- */
+.output {
+  background: #0f172a;
+  color: #a5f3fc;
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-family: Consolas, "Courier New", monospace;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 16px 0;
+}
+
+/* ---------- 占位页 ---------- */
+.placeholder {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+.placeholder .big { font-size: 44px; margin-bottom: 10px; }
+
+/* ==========================================================================
+   以下样式为「功能 3：添加待办」新增
+   ========================================================================== */
+
+/* ---------- 表单 ---------- */
+.task-form { margin-top: 4px; }
+
+.form-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+
+.form-row label { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+
+.req { color: var(--bad); }
+
+.form-row input,
+.form-row select,
+.form-row textarea {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  width: 100%;
+}
+
+.form-row textarea { resize: vertical; }
+
+.form-row input:focus,
+.form-row select:focus,
+.form-row textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+}
+
+/* 两列 / 四列自适应布局：屏幕窄的时候自动变成单列 */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 16px;
+}
+
+.form-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+.btn-ghost {
+  background: #fff;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--bg); color: var(--text); }
+
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.form-msg { font-size: 13px; }
+.form-msg.ok { color: var(--ok); }
+.form-msg.error { color: var(--bad); }
+
+/* ---------- 列表头 ---------- */
+.list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.list-head h2 { margin: 0; }
+
+.stats { font-size: 13px; color: var(--text-muted); }
+
+/* ---------- 待办条目 ---------- */
+.task-list { display: flex; flex-direction: column; gap: 10px; }
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  transition: box-shadow .15s, transform .1s;
+}
+
+.task-item:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, .06); }
+
+/* 左侧色条表示优先级：0 低 / 1 中 / 2 高 */
+.task-item.p0 { border-left-color: #cbd5e1; }
+.task-item.p1 { border-left-color: #60a5fa; }
+.task-item.p2 { border-left-color: #ef4444; }
+
+.task-main { min-width: 0; flex: 1; }
+
+.task-title { font-size: 15px; font-weight: 600; word-break: break-word; }
+
+.task-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.task-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+
+.meta { font-size: 12px; color: var(--text-muted); }
+.meta-remind { color: #b45309; }
+
+.badge {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.badge-p1 { background: #dbeafe; color: #1d4ed8; }
+.badge-p2 { background: #fee2e2; color: #b91c1c; }
+.badge-cat { background: #f1f5f9; color: #475569; }
+
+.task-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.task-id { font-size: 11px; color: #9ca3af; font-family: Consolas, monospace; }
+.task-created { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+
+/* ---------- 空状态 ---------- */
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+.empty p { margin: 4px 0; }
+.empty-icon { font-size: 34px; margin-bottom: 6px; opacity: .7; }
+.empty.error { color: var(--bad); }
+
+/* ---------- 底部状态栏 ---------- */
+.statusbar {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 10px 16px 22px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.status-item { display: inline-flex; align-items: center; gap: 6px; }
+.statusbar .dot { width: 9px; height: 9px; }
+
+/* ==========================================================================
+   以下样式为「功能 4~7：完整任务管理」新增
+   ========================================================================== */
+
+/* ---------- 工具栏（标签 + 搜索） ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.tab {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 6px 13px;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.tab:hover { color: var(--text); border-color: var(--border); }
+
+.tab.active { background: var(--primary); color: #fff; }
+
+.tab-count {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 3px;
+  font-size: 11px;
+  opacity: .8;
+}
+
+.search {
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  outline: none;
+  min-width: 190px;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.search:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+
+/* ---------- 复选框 ---------- */
+.task-check {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  accent-color: var(--ok);
+}
+
+/* ---------- 已完成样式 ---------- */
+.task-item.done { background: #fafafa; }
+.task-item.done .task-title { text-decoration: line-through; color: var(--text-muted); }
+.task-item.done .task-desc { color: #b0b6bf; }
+.meta-done { color: var(--ok); }
+
+/* ---------- 正在编辑的那条，高亮一下 ---------- */
+.task-item.editing { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.10); }
+
+/* ---------- 操作按钮 ---------- */
+.task-actions { display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
+.task-item:hover .task-actions,
+.task-item.editing .task-actions { opacity: 1; }
+
+/* 触屏设备没有 hover，永远显示 */
+@media (hover: none) {
+  .task-actions { opacity: 1; }
+}
+
+.icon-btn {
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.icon-btn:hover { color: var(--primary); border-color: var(--primary); }
+.icon-btn.danger:hover { color: var(--bad); border-color: var(--bad); }
+
+/* 说明：就地编辑已改为居中弹窗，原来的"编辑模式卡片"样式已移除，
+   弹窗样式见文件末尾的"编辑弹窗"一节。 */
+
+/* ==========================================================================
+   提醒卡片：右下角常驻
+   （用户反馈："提示的优先级不高，能不能做成系统级的，不点取消就一直挂在右下角"）
+   ========================================================================== */
+
+.toast-stack {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;                     /* 比编辑弹窗层级更高，保证不会被挡住 */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+}
+
+.toast-stack[hidden] { display: none; }
+
+.toast-item {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--primary);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, .18);
+  padding: 14px 16px 13px;
+  animation: toast-in .28s cubic-bezier(.2, .9, .3, 1.15);
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(26px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.toast-head { display: flex; align-items: center; gap: 7px; margin-bottom: 8px; }
+
+.toast-icon {
+  font-size: 15px;
+  display: inline-block;
+  animation: shake 1.2s ease-in-out infinite;
+}
+
+/* 图标轻微摇晃，吸引注意力但不至于烦人 */
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-13deg); }
+  40% { transform: rotate(11deg); }
+  60% { transform: rotate(-7deg); }
+  80% { transform: rotate(4deg); }
+}
+
+.toast-heading {
+  flex: 1;
+  font-size: 11.5px;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.toast-close {
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 1;
+  color: #9ca3af;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 5px;
+}
+
+.toast-close:hover { background: var(--bg); color: var(--bad); }
+
+.toast-title { font-size: 15px; font-weight: 700; line-height: 1.4; word-break: break-word; }
+
+.toast-desc {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.toast-meta {
+  font-size: 12px;
+  color: #b45309;
+  background: #fffbeb;
+  border-radius: 7px;
+  padding: 6px 9px;
+  margin-top: 9px;
+  line-height: 1.7;
+}
+
+.toast-actions { display: flex; gap: 7px; margin-top: 11px; }
+
+.btn-sm { padding: 6px 12px; font-size: 12.5px; }
+
+@media (max-width: 480px) {
+  .toast-stack { right: 10px; left: 10px; bottom: 10px; max-width: none; }
+}
+
+
+/* ==========================================================================
+   以下样式为「功能 9：提醒系统」新增
+   ========================================================================== */
+
+/* ---------- 提醒设置条 ---------- */
+.reminder-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  padding-top: 13px;
+  border-top: 1px dashed var(--border);
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.reminder-icon { font-size: 14px; }
+
+/* ---------- 弹窗遮罩 ---------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, .45);
+  backdrop-filter: blur(2px);
+  animation: fade-in .18s ease-out;
+}
+
+.modal-backdrop[hidden] { display: none; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------- 弹窗本体 ---------- */
+.modal {
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .25);
+  padding: 26px 26px 20px;
+  text-align: center;
+  animation: pop-in .22s cubic-bezier(.2, .9, .3, 1.2);
+  /* 提醒弹窗要显眼：顶部加一条主题色 */
+  border-top: 5px solid var(--primary);
+}
+
+/* （提醒弹窗专用的 .modal-icon / .modal-title 等已移除，
+   提醒改成了右下角常驻卡片，样式见文件末尾） */
+
+.modal-heading {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+
+.modal-actions .btn { padding: 8px 15px; font-size: 13.5px; }
+
+/* ==========================================================================
+   以下样式为「功能 10：日历视图」新增
+   ========================================================================== */
+
+.container-wide { max-width: 1080px; }
+
+/* ---------- 月历头部 ---------- */
+.cal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.cal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  min-width: 130px;
+  text-align: center;
+}
+
+.cal-header .stats { margin-left: auto; }
+
+/* ---------- 星期表头 ---------- */
+.cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  padding: 6px 0;
+}
+
+/* ---------- 日期网格 ---------- */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.cal-cell {
+  min-height: 92px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+  overflow: hidden;
+}
+
+.cal-cell:hover { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,99,235,.10); }
+
+/* 非本月：淡一点，一眼能区分 */
+.cal-cell.out-month { background: #fafbfc; }
+.cal-cell.out-month .cal-daynum { color: #c3c9d2; }
+
+.cal-cell.is-past { background: #fbfbfb; }
+.cal-cell.is-past .cal-daynum { color: #b9bfc7; }
+
+.cal-cell.is-today { border-color: var(--primary); background: #eff6ff; }
+
+.cal-cell.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.18);
+}
+
+.cal-daynum { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.cal-cell.is-today .cal-daynum { color: var(--primary); }
+
+.cal-chips { display: flex; flex-direction: column; gap: 2px; }
+
+.cal-chip {
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #3730a3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-chip.p2 { background: #fee2e2; color: #b91c1c; }
+.cal-chip.done { background: #f1f5f9; color: #94a3b8; text-decoration: line-through; }
+.cal-more { font-size: 10.5px; color: var(--text-muted); padding-left: 4px; }
+
+/* ---------- 某天的任务列表 ---------- */
+.day-tasks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+
+.day-task {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.day-task.done .day-task-title { text-decoration: line-through; color: var(--text-muted); }
+.day-task-title { flex: 1; min-width: 0; word-break: break-word; }
+.day-task-time { font-size: 12px; color: var(--text-muted); font-family: Consolas, monospace; }
+
+/* ---------- 快速添加 ---------- */
+.quick-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+}
+
+.quick-form input[type="text"] {
+  flex: 1;
+  min-width: 170px;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+.quick-form input[type="time"] {
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+}
+
+.quick-form input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+.quick-form input:disabled { background: #f3f4f6; color: #9ca3af; cursor: not-allowed; }
+.quick-form .form-msg { flex-basis: 100%; }
+
+/* ---------- 窄屏适配：日历格子变小 ---------- */
+@media (max-width: 720px) {
+  .cal-cell { min-height: 62px; padding: 4px; }
+  .cal-chip { font-size: 10px; }
+  .cal-header h2 { min-width: 0; }
+}
+
+/* ==========================================================================
+   以下样式为「功能 11：设置页」新增
+   ========================================================================== */
+
+/* ---------- 设置行 ---------- */
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.setting-row:last-of-type { border-bottom: none; }
+.setting-label { min-width: 0; }
+.setting-name { font-size: 14.5px; font-weight: 600; }
+.setting-desc { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+
+/* ---------- 开关（纯 CSS，不用图片） ---------- */
+.switch { position: relative; display: inline-block; flex: 0 0 auto; cursor: pointer; }
+.switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.switch-track {
+  display: block;
+  width: 46px;
+  height: 26px;
+  background: #cbd5e1;
+  border-radius: 999px;
+  transition: background .18s;
+  position: relative;
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  transition: transform .18s;
+}
+
+.switch input:checked + .switch-track { background: var(--ok); }
+.switch input:checked + .switch-track .switch-thumb { transform: translateX(20px); }
+.switch input:disabled + .switch-track { opacity: .45; cursor: not-allowed; }
+
+/* ---------- 路径显示 ---------- */
+.setting-note { margin: 14px 0; }
+
+.note-label { font-size: 12.5px; color: var(--text-muted); margin-bottom: 5px; }
+
+.path-box {
+  display: block;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  word-break: break-all;
+  color: #334155;
+}
+
+.setting-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+
+/* ---------- 提示框 ---------- */
+.callout {
+  margin-top: 16px;
+  padding: 12px 15px;
+  background: #fffbeb;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: #78350f;
+}
+
+/* ---------- 统计方块 ---------- */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.stat-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.stat-num { font-size: 21px; font-weight: 700; color: var(--primary); line-height: 1.25; }
+.stat-label { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+/* ---------- 关于表格 ---------- */
+.about-grid { margin: 14px 0; }
+
+.about-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13.5px;
+}
+
+.about-row:last-child { border-bottom: none; }
+.about-row > span:first-child { color: var(--text-muted); }
+.about-row > span:last-child { font-weight: 600; word-break: break-all; text-align: right; }
+
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* ---------- 危险操作按钮（退出程序） ---------- */
+.btn-danger {
+  background: #fff;
+  color: var(--bad);
+  border: 1px solid var(--bad);
+}
+.btn-danger:hover { background: var(--bad); color: #fff; }
+
+/* ---------- 日志查看框 ---------- */
+.log-view {
+  margin-top: 14px;
+  max-height: 320px;
+  overflow: auto;
+  background: #0f172a;
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+
+/* ==========================================================================
+   编辑弹窗（用户反馈：就地编辑不够突出 -> 改成居中弹窗）
+   ========================================================================== */
+
+/* 编辑弹窗比提醒弹窗宽，并且内容左对齐（表单）
+   同时限制最大高度，内容多时可以滚动 */
+.modal-wide {
+  max-width: 560px;
+  text-align: left;
+  max-height: calc(100vh - 60px);
+  overflow-y: auto;
+  border-top-color: var(--primary);
+}
+
+.modal-wide .modal-heading {
+  text-align: left;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--text);
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-wide .form-row { margin-bottom: 13px; }
+.modal-wide .form-row textarea { resize: vertical; }
+
+.modal-wide .modal-actions {
+  justify-content: flex-start;
+  margin-top: 18px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+/* 提示文字单独占一行，不然会挤在按钮旁边 */
+.modal-wide .modal-actions .form-msg { flex-basis: 100%; margin-top: 2px; }
+
+/* 窄屏适配 */
+@media (max-width: 620px) {
+  .modal-wide { max-height: calc(100vh - 30px); padding: 20px 18px 16px; }
+  .modal-wide .form-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- 设置行右侧（圆点 + 按钮 并排） ---------- */
+.setting-side { display: flex; align-items: center; gap: 9px; flex: 0 0 auto; }
+
+/* ---------- 小号下拉框 ---------- */
+.mini-select {
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  background: #fff;
+  outline: none;
+  cursor: pointer;
+}
+.mini-select:focus { border-color: var(--primary); }
+
+
+/* ---------- 备份列表 ---------- */
+.backup-list { display: flex; flex-direction: column; gap: 5px; margin: 12px 0; }
+
+.backup-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.backup-item .bk-time { font-weight: 600; color: #334155; }
+.backup-item .bk-size { color: var(--text-muted); font-family: Consolas, monospace; }
+
+
+
+
+
+

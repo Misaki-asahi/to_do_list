@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>离线待办清单</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">📝 离线待办清单</div>
+    <nav class="nav">
+      <a class="active" href="/">待办</a>
+      <a href="/calendar">日历</a>
+      <a href="/trash">回收站</a>
+      <a href="/settings">设置</a>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ================= 添加待办 ================= -->
+    <section class="card">
+      <h2>添加待办</h2>
+
+      <form id="task-form" class="task-form" autocomplete="off">
+
+        <div class="form-row">
+          <label for="f-title">标题 <span class="req">*</span></label>
+          <input id="f-title" type="text" maxlength="200"
+                 placeholder="例如：明天 8:30 交作业" />
+        </div>
+
+        <div class="form-grid">
+          <div class="form-row">
+            <label for="f-due">截止时间</label>
+            <input id="f-due" type="datetime-local" />
+          </div>
+          <div class="form-row">
+            <label for="f-remind">提醒时间</label>
+            <input id="f-remind" type="datetime-local" />
+          </div>
+          <div class="form-row">
+            <label for="f-priority">优先级</label>
+            <select id="f-priority">
+              <option value="0">低</option>
+              <option value="1" selected>中</option>
+              <option value="2">高</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label for="f-category">分类</label>
+            <input id="f-category" type="text" maxlength="50" placeholder="学习 / 生活 / 工作" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label for="f-desc">描述</label>
+          <textarea id="f-desc" rows="2" maxlength="2000" placeholder="可选，补充说明"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button class="btn" type="submit" id="btn-submit">添加</button>
+          <button class="btn btn-ghost" type="reset" id="btn-reset">清空</button>
+          <span class="form-msg" id="form-msg"></span>
+        </div>
+      </form>
+    </section>
+
+    <!-- ================= 待办列表 ================= -->
+    <section class="card">
+      <div class="list-head">
+        <h2>待办列表</h2>
+        <span class="stats" id="stats">—</span>
+      </div>
+
+      <!-- 筛选标签 + 搜索 -->
+      <div class="toolbar">
+        <div class="tabs" id="tabs">
+          <button class="tab active" type="button" data-status="all">
+            全部 <span class="tab-count" id="count-all">0</span>
+          </button>
+          <button class="tab" type="button" data-status="todo">
+            未完成 <span class="tab-count" id="count-todo">0</span>
+          </button>
+          <button class="tab" type="button" data-status="done">
+            已完成 <span class="tab-count" id="count-done">0</span>
+          </button>
+        </div>
+        <input id="search" class="search" type="search" placeholder="搜索标题或描述…" />
+      </div>
+
+      <div class="task-list" id="task-list">
+        <div class="empty"><p class="muted">正在加载…</p></div>
+      </div>
+
+      <!-- 提醒设置条 -->
+      <div class="reminder-bar">
+        <span class="reminder-icon">🔔</span>
+        <span>提醒方式：<strong>Windows 系统通知</strong>（右下角，不点掉不会消失）+ 页面内卡片</span>
+        <a class="icon-btn" href="/settings">到设置页测试通知</a>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= 编辑待办弹窗 ================= -->
+  <div class="modal-backdrop" id="edit-modal" hidden>
+    <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="edit-heading">
+      <div class="modal-heading" id="edit-heading">编辑待办</div>
+
+      <form id="edit-form" class="task-form" autocomplete="off">
+        <div class="form-row">
+          <label for="e-title">标题 <span class="req">*</span></label>
+          <input id="e-title" type="text" maxlength="200" placeholder="待办标题" />
+        </div>
+
+        <div class="form-grid">
+          <div class="form-row">
+            <label for="e-due">截止时间</label>
+            <input id="e-due" type="datetime-local" />
+          </div>
+          <div class="form-row">
+            <label for="e-remind">提醒时间</label>
+            <input id="e-remind" type="datetime-local" />
+          </div>
+          <div class="form-row">
+            <label for="e-priority">优先级</label>
+            <select id="e-priority">
+              <option value="0">低</option>
+              <option value="1">中</option>
+              <option value="2">高</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label for="e-category">分类</label>
+            <input id="e-category" type="text" maxlength="50" placeholder="学习 / 生活 / 工作" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label for="e-desc">描述</label>
+          <textarea id="e-desc" rows="3" maxlength="2000" placeholder="可选，补充说明"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn" type="submit" id="edit-submit">保存修改</button>
+          <button class="btn btn-ghost" type="button" id="edit-cancel">取消</button>
+          <span class="form-msg" id="edit-msg"></span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 提醒卡片（右下角常驻，不点不会消失） ================= -->
+  <div class="toast-stack" id="toast-stack" hidden></div>
+
+  <!-- ================= 底部状态栏（开发期自查用） ================= -->
+  <footer class="statusbar">
+    <span class="status-item"><span class="dot" id="dot-static"></span> 静态资源</span>
+    <span class="status-item"><span class="dot" id="dot-server"></span> 后端服务</span>
+    <span class="status-item"><span class="dot" id="dot-api"></span> 接口</span>
+    <span class="status-item"><span class="dot" id="dot-db"></span> 数据库</span>
+  </footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/health.js"></script>
+  <script src="/static/js/list.js"></script>
+  <script src="/static/js/edit.js"></script>
+  <script src="/static/js/reminder.js"></script>
+</body>
+</html>

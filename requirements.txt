@@ -1,0 +1,20 @@
+# ==========================================================================
+#  离线待办清单 —— 运行依赖
+#
+#  安装：pip install -r requirements.txt
+#
+#  环境要求：Python 3.10 或更高版本
+#      （代码里用了 str | None 这种联合类型写法，3.10 以下会报语法错误）
+# ==========================================================================
+
+fastapi>=0.115      # Web 框架：提供 API 与路由，自带 /docs 接口调试页
+uvicorn>=0.30       # ASGI 服务器：真正把 FastAPI 跑起来的程序
+sqlalchemy>=2.0     # ORM：用 Python 类操作数据库，以后换 Postgres 只改一处
+pydantic>=2.0       # 数据校验：app/schemas.py 直接用它定义接口数据模型
+
+# ---- 说明 ----
+# 提醒的定时扫描【不使用】第三方库（如 APScheduler），
+# 用 Python 标准库 threading 就够了 —— 依赖越少，别人越容易跑起来。
+#
+# Windows 系统通知也【不使用】第三方库（如 winotify / win10toast），
+# 直接调用系统自带的 Windows PowerShell 5.1 完成 —— 详见 app/core/notifier.py。

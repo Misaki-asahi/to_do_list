@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>回收站 - 离线待办清单</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">📝 离线待办清单</div>
+    <nav class="nav">
+      <a href="/">待办</a>
+      <a href="/calendar">日历</a>
+      <a class="active" href="/trash">回收站</a>
+      <a href="/settings">设置</a>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ================= 回收站说明 ================= -->
+    <section class="card">
+      <h2>回收站</h2>
+
+      <div class="callout">
+        <strong>删除不会立刻销毁数据。</strong>
+        在待办列表里点删除，任务只是被移到这里 —— 列表里看不见了，但数据还在数据库里，
+        随时可以「还原」。只有当你在这里点「彻底删除」，它才真正消失、无法找回。
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="stat-num" id="trash-count">-</div>
+          <div class="stat-label">回收站里的任务</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-ghost btn-sm" id="btn-refresh" type="button">刷新</button>
+        <button class="btn btn-danger btn-sm" id="btn-empty" type="button">清空回收站</button>
+      </div>
+
+      <div class="form-msg" id="trash-msg"></div>
+    </section>
+
+    <!-- ================= 已删除的任务列表 ================= -->
+    <section class="card">
+      <div class="list-head">
+        <h2>已删除的任务</h2>
+        <span class="muted">最近删除的排在最前面</span>
+      </div>
+
+      <div class="task-list" id="trash-list">
+        <div class="placeholder">正在加载…</div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="statusbar">
+    <span class="status-item"><span class="dot" id="dot-static"></span> 静态资源</span>
+    <span class="status-item"><span class="dot" id="dot-server"></span> 后端服务</span>
+    <span class="status-item"><span class="dot" id="dot-api"></span> 接口</span>
+    <span class="status-item"><span class="dot" id="dot-db"></span> 数据库</span>
+  </footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/health.js"></script>
+  <script src="/static/js/trash.js"></script>
+</body>
+</html>
