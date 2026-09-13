@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>日历 - 离线待办清单</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">📝 离线待办清单</div>
+    <nav class="nav">
+      <a href="/">待办</a>
+      <a class="active" href="/calendar">日历</a>
+      <a href="/trash">回收站</a>
+      <a href="/settings">设置</a>
+    </nav>
+  </header>
+
+  <main class="container container-wide">
+
+    <!-- ================= 月历 ================= -->
+    <section class="card">
+      <div class="cal-header">
+        <button class="icon-btn" type="button" id="cal-prev">‹ 上月</button>
+        <h2 id="cal-title">加载中…</h2>
+        <button class="icon-btn" type="button" id="cal-next">下月 ›</button>
+        <button class="icon-btn" type="button" id="cal-today">今天</button>
+        <span class="stats" id="cal-stat"></span>
+      </div>
+
+      <div class="cal-weekdays" id="cal-weekdays"></div>
+      <div class="cal-grid" id="cal-grid">
+        <div class="empty"><p class="muted">正在加载…</p></div>
+      </div>
+    </section>
+
+    <!-- ================= 选中某一天 ================= -->
+    <section class="card" id="day-panel">
+      <h2 id="day-title">选一天看看</h2>
+      <p class="muted" id="day-hint">点击上面日历里的任意一天，这里会显示那天的待办。</p>
+
+      <div id="day-tasks" class="day-tasks"></div>
+
+      <form id="quick-form" class="quick-form" autocomplete="off">
+        <input id="q-title" type="text" maxlength="200" placeholder="在这天添加一条待办…" />
+        <input id="q-time" type="time" value="23:59" title="截止时间（默认当天 23:59）" />
+        <button class="btn" type="submit" id="q-submit">添加</button>
+        <span class="form-msg" id="q-msg"></span>
+      </form>
+    </section>
+
+    <!-- ================= 未安排日期 ================= -->
+    <section class="card">
+      <h2>未安排日期</h2>
+      <p class="muted">这些待办没有填截止时间，所以不会出现在月历上。</p>
+      <div id="undated-list" class="day-tasks"></div>
+    </section>
+
+  </main>
+
+  <footer class="statusbar">
+    <span class="status-item"><span class="dot" id="dot-static"></span> 静态资源</span>
+    <span class="status-item"><span class="dot" id="dot-server"></span> 后端服务</span>
+    <span class="status-item"><span class="dot" id="dot-api"></span> 接口</span>
+    <span class="status-item"><span class="dot" id="dot-db"></span> 数据库</span>
+  </footer>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/health.js"></script>
+  <script src="/static/js/calendar.js"></script>
+</body>
+</html>

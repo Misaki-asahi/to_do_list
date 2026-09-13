@@ -1,0 +1,2 @@
+# 这个文件只是为了让 Git 保留空的 data/ 目录。
+# 真正的数据库 todo.db 会被 .gitignore 忽略，不会上传到 GitHub。
