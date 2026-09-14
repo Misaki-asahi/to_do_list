@@ -302,15 +302,21 @@ LICENSE                       MIT
 - **VS Code 走 Windows 系统代理**，所以它能推成功；
 - **Git 默认【不读】系统代理**，一直在直连 `github.com:443`，因此总被重置。
 
-**解决**（任选一种）：
+**解决方式 —— 已配置完成（2026-09-14）**
+
+代理已经写进**本仓库的本地配置**（`.git/config`），全局配置未改动，
+所以其它仓库不受影响。**现在直接 `git push` 就能用，不需要带任何参数。**
 
 ```powershell
-# 临时生效（不改任何配置，推荐先这样验证）
-git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push
-
-# 只给本仓库配置（一劳永逸）
+# 已完成，无需重复执行：
 git config --local http.proxy http://127.0.0.1:7897
 git config --local https.proxy http://127.0.0.1:7897
+```
+
+如果哪天需要临时绕过（比如代理关了、用直连），可以单次覆盖：
+
+```powershell
+git -c http.proxy= -c https.proxy= push        # 本次直连
 ```
 
 > ⚠️ **配了代理之后，代理软件必须开着**。哪天关掉 Clash，git 会连不上（连国内仓库也一样）。
