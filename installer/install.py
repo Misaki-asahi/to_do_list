@@ -33,12 +33,22 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 APP_NAME = "离线待办清单"
 APP_ID = "OfflineTodoList"
-APP_VERSION = "0.1.0"
+
+# ⚠️ 【发新版本时记得改这里】这个版本号要和 app/config.py 里的 APP_VERSION 一致。
+#   它曾经漏改过：应用已经是 0.2.0，安装界面却还显示 0.1.0。
+#   安装界面显示的版本，是用户判断"我装的到底是不是新版"的第一依据，
+#   写错了会直接误导人，所以每次发版都要核对一遍。
+APP_VERSION = "0.2.0"
 EXE_NAME = "OfflineTodoList.exe"
+
+# 装完之后在安装目录写一个 VERSION 文件，记录"装的是哪个版本"。
+# 下次安装时读它，就能告诉用户"这是在从哪个版本升级"。
+VERSION_MARKER = "VERSION"
 SHORTCUT_MATCH = "OfflineTodoList"     # 用来识别"哪些快捷方式是我们建的"
 
 
@@ -272,6 +282,50 @@ def write_uninstaller(target: Path) -> Path:
 # 安装主流程
 # ===========================================================================
 
+def installed_version():
+    """
+    读取【当前已安装】的版本号；没装过、或读不到，返回 None。
+
+    为什么要单独存一个 VERSION 文件？
+        打包后的程序代码被编译进了 exe，外面看不到源码里的 APP_VERSION。
+        与其去"猜"（比如看 exe 的修改时间），不如安装时明确写一个文件下来 ——
+        简单、可靠、还能人工查看。
+
+    老版本装的程序没有这个文件，所以会返回 None，
+    界面上会显示成"较早的版本"而不是报错。
+    """
+    marker = install_dir() / VERSION_MARKER
+    if not marker.exists():
+        return None
+    try:
+        return marker.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _remove_tree(path: Path, attempts: int = 3):
+    """
+    删除一个目录，失败会重试几次。返回 (是否成功, 错误说明)。
+
+    【为什么不直接用 shutil.rmtree(ignore_errors=True)？】
+        因为那样【删不干净也当成功】。接下来复制文件时会报一个含糊的
+        "复制文件失败"，用户完全不知道该怎么办（真实原因往往是"程序还没关掉"）。
+        这里宁可多花一秒重试，也要把真实原因说清楚。
+    """
+    if not path.exists():
+        return True, ""
+
+    last = None
+    for i in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return True, ""
+        except OSError as exc:
+            last = exc
+            time.sleep(0.5)      # 给占用文件的进程一点时间退出
+    return False, str(last)
+
+
 def kill_running_app() -> None:
     """关掉正在运行的旧版本（否则文件被占用，复制会失败）。"""
     try:
@@ -284,8 +338,23 @@ def kill_running_app() -> None:
 
 def do_install(progress=None):
     """
-    执行安装。返回 (是否成功, 消息, 安装路径)。
+    执行安装。【已经装过的话，这一步就是"覆盖升级"】。
+
+    返回 (是否成功, 消息, 安装路径)。
     progress 是回调函数，用来在界面上显示进度。
+
+    【为什么采用"先备好、再替换"的步骤？】
+        老写法是：先删掉旧目录 -> 再复制新文件。
+        问题是这两步之间一旦失败（磁盘满、杀毒软件锁文件、权限不足），
+        用户就会处于【既没有旧版、也没有新版】的状态 —— 只能重下重装。
+
+        现在改成：把最耗时、最容易失败的"复制"放在【旧版本还在】的时候做。
+        复制成功之后，才做"删旧 + 改名"这两个瞬间动作。
+        这样任何一步失败，用户手上至少还有一个能用的版本。
+
+    升级【不会碰】用户的待办数据 ——
+        程序装在 %LOCALAPPDATA%\Programs\OfflineTodoList，
+        数据存在 %LOCALAPPDATA%\OfflineTodoList\data，两者完全分开。
     """
     def say(text):
         if progress:
@@ -296,20 +365,103 @@ def do_install(progress=None):
         return False, "安装包数据异常：找不到程序文件（%s）" % source, None
 
     target = install_dir()
+    staging = target.parent / (target.name + ".new")
+    backup = target.parent / (target.name + ".old")
 
+    # 先看看装没装过、装的是哪一版（用于界面提示和最后的升级消息）
+    previous = installed_version()
+    is_upgrade = target.exists()
+
+    if is_upgrade:
+        say("检测到已安装 %s，准备覆盖升级到 v%s…"
+            % (("v" + previous) if previous else "较早的版本", APP_VERSION))
+    else:
+        say("准备安装 v%s…" % APP_VERSION)
+
+    # ---- 1) 关掉正在运行的旧版本 ----
+    # 程序在跑的时候，它自己的 exe 和 _internal 里的 dll 都被占用着，
+    # 既删不掉也覆盖不了。所以这一步必须最先做。
     say("正在关闭可能正在运行的旧版本…")
     kill_running_app()
-    import time
-    time.sleep(0.6)
+    time.sleep(0.8)          # 给进程一点时间真正退出并释放文件句柄
 
-    say("正在复制程序文件…")
+    # ---- 2) 先把新版本复制到【旁边的暂存目录】 ----
+    # 这是整个流程里最耗时的一步。放在这里做，一旦失败，旧版本完全没被碰过。
+    say("正在准备程序文件…")
+    # 顺手清掉上次可能残留的 .new / .old（正常情况下来自失败的安装）
+    for leftover in (staging, backup):
+        ok, err = _remove_tree(leftover)
+        if not ok:
+            return False, "无法清理上次遗留的临时目录（%s）：%s" % (leftover.name, err), None
+
+    target.parent.mkdir(parents=True, exist_ok=True)
     try:
-        if target.exists():
-            shutil.rmtree(target, ignore_errors=True)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(source, target)
+        shutil.copytree(source, staging)
     except OSError as exc:
-        return False, "复制文件失败：%s" % exc, None
+        _remove_tree(staging)
+        return False, "复制程序文件失败（原有版本未被改动）：%s" % exc, None
+
+    if not (staging / EXE_NAME).exists():
+        _remove_tree(staging)
+        return False, "安装包不完整：里面没有找到 %s" % EXE_NAME, None
+
+    # ---- 3) 把【旧的】安装目录改名让位 ----
+    #
+    # 【为什么是"改名"而不是"删除"？】
+    #   shutil.rmtree 是【逐个删文件】的。如果目录里有个文件被占用，
+    #   它会先删掉一大半、再撞上那个文件报错 —— 于是旧安装被毁了一半。
+    #   （这个坑是实测出来的：锁住 exe 再安装，111 个文件只剩 3 个。）
+    #
+    #   而【重命名目录】在 Windows 上是原子操作：
+    #   要么整个成功，要么整个失败，不会留下"删了一半"的残骸。
+    #   所以这里先把它挪到 .old，失败的话旧版本仍然完好无损。
+    moved_backup = False
+    if target.exists():
+        say("正在替换旧版本…")
+        try:
+            backup_ok, backup_err = _remove_tree(backup)
+            if not backup_ok:
+                _remove_tree(staging)
+                return False, "无法清理上次遗留的备份目录：%s" % backup_err, None
+            target.rename(backup)
+            moved_backup = True
+        except OSError as exc:
+            _remove_tree(staging)
+            return False, (
+                "无法替换旧版本（原有安装【完好无损】）。\n"
+                "多半是程序还在运行 —— 请先在设置页点「退出程序」，"
+                "或用任务管理器结束 %s 后重试。\n"
+                "技术细节：%s"
+            ) % (EXE_NAME, exc), None
+
+    # ---- 4) 把暂存目录改名成正式目录 ----
+    # 同一磁盘内的重命名，瞬间完成 —— 不存在"改到一半"的中间状态。
+    say("正在完成安装…")
+    try:
+        staging.rename(target)
+    except OSError as exc:
+        # ★ 回滚：把旧版本改回来，让用户至少还有一个能用的程序
+        if moved_backup:
+            try:
+                backup.rename(target)
+            except OSError:
+                pass
+        _remove_tree(staging)
+        return False, "最终替换失败，已回滚到原有版本：%s" % exc, None
+
+    # ---- 4.5) 尽力删掉旧版本目录 ----
+    # 删不掉也无所谓：它只是占点磁盘空间，不影响程序运行。
+    # 下次安装时会自动清理掉。
+    if moved_backup:
+        _remove_tree(backup, attempts=1)
+
+    # ---- 5) 记录版本号，供下次安装判断"从哪个版本升级" ----
+    try:
+        (target / VERSION_MARKER).write_text(APP_VERSION + "\n", encoding="utf-8")
+    except OSError:
+        # 这个文件只是给下次安装看的，写不进去不影响程序运行，
+        # 所以【不应该】因为它让整个安装失败。
+        pass
 
     if not (target / EXE_NAME).exists():
         return False, "安装不完整：没有找到 %s" % EXE_NAME, None
@@ -324,6 +476,11 @@ def do_install(progress=None):
     say("正在登记卸载信息…")
     register_uninstall_entry(target, uninstaller)
 
+    # 消息区分"首次安装"和"覆盖升级"，让用户明确知道刚才发生了什么
+    if is_upgrade:
+        if previous and previous != APP_VERSION:
+            return True, "升级完成：v%s → v%s（待办数据已保留）" % (previous, APP_VERSION), target
+        return True, "安装完成（已覆盖原有版本，待办数据已保留）", target
     return True, "安装完成", target
 
 
@@ -356,7 +513,32 @@ def run_gui():
 
     tk.Label(root, text="安装位置：" + str(install_dir()),
              font=("Microsoft YaHei", 9), fg="#6b7280",
-             wraplength=480, justify="left").pack(pady=(20, 6))
+             wraplength=480, justify="left").pack(pady=(14, 4))
+
+    # ---- 检测已安装的版本，给出明确的升级提示 ----
+    # 【为什么值得单独做这一段？】
+    #   对不懂的人来说，"覆盖安装"是件让人紧张的事：会不会把我的数据弄丢？
+    #   与其让他猜，不如直接告诉他三件事：
+    #     1. 我检测到了你装过哪个版本
+    #     2. 这次会升级到什么版本
+    #     3. 你的待办数据放在别处，不会被碰
+    previous = installed_version() if install_dir().exists() else None
+    if install_dir().exists():
+        banner = "检测到已安装 %s" % (("v" + previous) if previous else "较早的版本")
+        banner += "，将覆盖升级到 v%s" % APP_VERSION
+        banner_color = "#b45309"      # 琥珀色：提醒但不吓人
+    else:
+        banner = "全新安装 v%s" % APP_VERSION
+        banner_color = "#047857"      # 绿色：一切照旧
+
+    tk.Label(root, text=banner, font=("Microsoft YaHei", 10, "bold"),
+             fg=banner_color, wraplength=480).pack(pady=(8, 0))
+
+    # 数据安全说明 —— 这是用户最关心、也最容易误解的一点
+    tk.Label(root,
+             text="你的待办数据保存在 %s\n升级只替换程序文件，不会影响已有数据。" % data_dir(),
+             font=("Microsoft YaHei", 8), fg="#6b7280",
+             wraplength=480, justify="center").pack(pady=(4, 0))
 
     status = tk.StringVar(value="点下面的按钮开始安装")
     tk.Label(root, textvariable=status, font=("Microsoft YaHei", 11),
@@ -431,6 +613,9 @@ def main():
     if "--info" in args:
         return report({
             "action": "info",
+            "this_version": APP_VERSION,
+            "installed": install_dir().exists(),
+            "installed_version": installed_version(),
             "payload": str(payload_dir()),
             "payload_exists": payload_dir().exists(),
             "install_dir": str(install_dir()),
