@@ -293,8 +293,30 @@ LICENSE                       MIT
   免打扰时段（OPT-021）、通知点击跳转（OPT-020）、前端模块化（OPT-009）。
 
 ### 环境方面的注意事项
-- **GitHub 连通性**：`github.com:443` 偶发连不上（DNS 解析正常、TCP 被重置，国内常见）。
-  推送失败时开代理或稍后重试；本地开发完全不受影响。
+
+#### ★ Git 推送必须先配代理（已定位根因）
+
+**现象**：`git push` 报 `Failed to connect to github.com:443`，但 VS Code 里点推送却是成功的。
+
+**根因**：这台机器上开着代理（`verge-mihomo`，`127.0.0.1:7897`）。
+- **VS Code 走 Windows 系统代理**，所以它能推成功；
+- **Git 默认【不读】系统代理**，一直在直连 `github.com:443`，因此总被重置。
+
+**解决**（任选一种）：
+
+```powershell
+# 临时生效（不改任何配置，推荐先这样验证）
+git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push
+
+# 只给本仓库配置（一劳永逸）
+git config --local http.proxy http://127.0.0.1:7897
+git config --local https.proxy http://127.0.0.1:7897
+```
+
+> ⚠️ **配了代理之后，代理软件必须开着**。哪天关掉 Clash，git 会连不上（连国内仓库也一样）。
+> 想取消：`git config --local --unset http.proxy`（`https.proxy` 同理）。
+>
+> **端口不一定是 7897** —— 以代理软件里显示的为准，可在「设置 → 网络和 Internet → 代理」查看。
 
 ---
 
@@ -325,7 +347,8 @@ LICENSE                       MIT
 | 看有没有改动要提交 | `git status` |
 | 看提交历史 | `git log --oneline` |
 | 提交 | `git add -A` 然后 `git commit -m "说明"` |
-| 推送到 GitHub | `git push` |
+| 推送到 GitHub | `git push`（连不上时见下面「代理」一行）|
+| 推送（走代理） | `git -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push` |
 | 拉取最新 | `git pull` |
 | 看标签 | `git tag -n1` |
 | 检查仓库完整性 | `git fsck` |
