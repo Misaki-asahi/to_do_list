@@ -50,6 +50,10 @@ from xml.sax.saxutils import escape
 
 from app import config
 
+from app.core import logging_setup
+
+logger = logging_setup.get_logger("app.core.notifier")
+
 # 运行时生成的文件统一放在 data/ 下（项目自包含原则，见 AGENTS.md 3.1）
 NOTIFY_DIR = config.DATA_DIR / "notify"
 PS_SCRIPT = NOTIFY_DIR / "show_toast.ps1"
@@ -205,8 +209,10 @@ def _ensure_script() -> Path:
     try:
         if PS_SCRIPT.exists() and PS_SCRIPT.read_text(encoding="utf-8-sig") == PS_TEMPLATE:
             return PS_SCRIPT
-    except OSError:
-        pass
+    except OSError as exc:
+        # ★ 不许静默失败（AGENTS.md 3.2 / BUG-044）：至少留一行日志
+        logger.debug("文件 / 系统调用失败，按可忽略处理：%s", exc, exc_info=True)
+
     PS_SCRIPT.write_text(PS_TEMPLATE, encoding="utf-8-sig")
     return PS_SCRIPT
 
@@ -260,7 +266,11 @@ def show(title, body, lines=None, timeout=25) -> dict:
              "-ExecutionPolicy", "Bypass", "-File", str(PS_SCRIPT),
              "-AppId", active_app_id(),
              "-XmlPath", str(XML_FILE.resolve())],
-            capture_output=True, text=True, timeout=timeout,
+            # ★ 【v0.4.4】errors="replace"：打包版/无控制台运行时，
+            #   PowerShell 的报错信息是本地化中文（GBK），按 UTF-8 解码会失败，
+            #   一旦失败 stdout 就是 None —— 于是"通知其实发出去了"也会被
+            #   判断成"没发出去"（因为我们靠 stdout 里有没有 TOAST_OK 来判断）。
+            capture_output=True, text=True, errors="replace", timeout=timeout,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except FileNotFoundError:

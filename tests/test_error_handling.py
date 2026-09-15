@@ -129,7 +129,15 @@ class TestLogging:
         assert "独有的错误标记XYZ" in new_content
         assert "Traceback" in new_content
         # 同一个异常只记一次（重复记录会把日志撑爆）
-        assert new_content.count("Traceback (most recent call last)") == 1
+        #
+        # 【为什么不能数 "Traceback (most recent call last)" 的次数？】
+        #   这个次数会随"有几个中间件"变化：Starlette 在应用挂了
+        #   两个以上 http 中间件时，会把异常包进 ExceptionGroup，
+        #   于是同一个异常的堆栈里会出现多次这个字样 ——
+        #   那是【同一个异常的展开】，不是"被记了两次"。
+        #   所以这里改成数"那一条日志记录"本身：它只该出现一次。
+        assert new_content.count("未处理的异常 GET /api/tasks") == 1, (
+            "同一个异常被记录了多次（日志会被撑爆）")
 
     def test_log_info_endpoint(self, client):
         client.get("/api/tasks")

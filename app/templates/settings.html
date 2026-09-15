@@ -39,11 +39,15 @@
         </label>
       </div>
 
+      <!-- ★ v0.4.2：出厂默认是"关"（= 静默启动）。
+           用户要求「自启动静默启动，不要开启浏览器」，
+           但明确说"不需要拿掉"这个开关 —— 所以保留，只是默认关着。 -->
       <div class="setting-row">
         <div class="setting-label">
           <div class="setting-name">启动时同时打开浏览器</div>
           <div class="setting-desc">
-            关掉它（推荐）= 后台静默启动，不打扰你；想用时自己打开网址即可。
+            <strong>默认关闭</strong>：开机时程序在后台安静启动，不弹浏览器窗口。
+            想要开机就看到网页界面，再把这一项打开。
           </div>
         </div>
         <label class="switch">
@@ -226,6 +230,239 @@
       </div>
     </section>
 
+    <!-- ================= 桌面悬浮窗（v0.3.0 新增） ================= -->
+    <section class="card">
+      <h2>桌面悬浮窗 <span class="badge badge-p1">新功能</span></h2>
+      <p class="muted">
+        一个一直浮在桌面上的小窗口，直接显示待办。
+        <strong>关掉浏览器它也在</strong>，可以自由拖动位置、拖动右下角改大小，
+        还能调透明度、字号和颜色。开机自启后它会跟着一起出现，
+        <strong>在窗口里就能完成编辑和收到提醒</strong>。
+      </p>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">开启悬浮窗</div>
+          <div class="setting-desc" id="float-summary">正在检测…</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="float-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">开机自启时也显示悬浮窗</div>
+          <div class="setting-desc">
+            需要在上面「开机自启」里先开启自动启动。开启后，
+            登录 Windows 时会在后台起服务，并把悬浮窗一起显示出来。
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="float-autostart-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">窗口进程</div>
+          <div class="setting-desc" id="float-window-summary">正在检测…</div>
+        </div>
+        <span class="dot" id="float-dot"></span>
+      </div>
+
+      <!-- 守护线程的"刹车"状态：连续启动失败时会在这里把原因报出来 -->
+      <div class="setting-row" id="float-health-row" hidden>
+        <div class="setting-label">
+          <div class="setting-name">自动重试状态</div>
+          <div class="setting-desc" id="float-health-summary">—</div>
+          <div class="setting-desc" id="float-health-advice"></div>
+        </div>
+      </div>
+
+      <div class="setting-actions">
+        <button class="btn" type="button" id="btn-float-show">立即显示</button>
+        <button class="btn btn-ghost" type="button" id="btn-float-restart">重启窗口</button>
+        <button class="btn btn-ghost" type="button" id="btn-float-hide">隐藏窗口</button>
+        <button class="btn btn-ghost" type="button" id="btn-float-log">打开窗口日志目录</button>
+        <span class="form-msg" id="float-msg"></span>
+      </div>
+
+      <div class="setting-note">
+        <div class="note-label">窗口日志（窗口起不来时看这里）</div>
+        <code class="path-box" id="float-log-path">—</code>
+      </div>
+
+      <!-- ---- 外观 ---- -->
+      <h3 class="sub-title">外观</h3>
+
+      <p class="muted" id="float-defaults-hint" style="margin-top:0"></p>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">配色主题</div>
+          <div class="setting-desc">一键换色（同时会调整透明度）。也可以自己在下面细调。</div>
+        </div>
+        <div class="setting-side" id="float-themes"></div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">背景不透明度</div>
+          <div class="setting-desc" id="float-opacity-label">—</div>
+        </div>
+        <div class="setting-side">
+          <input type="range" id="float-opacity" class="range"
+                 min="30" max="100" step="1" value="70" />
+          <span class="range-value" id="float-opacity-value">70%</span>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>「不透明度」和「透明度」是相反的两个数，别搞混：</strong><br>
+        · 本项写的是 <strong>不透明度</strong>（数字越大越不透明）<br>
+        · <strong>透明度 = 100% − 不透明度</strong><br>
+        · 出厂默认 <strong>不透明度 70%</strong>，也就是
+        <strong>黑色背景 + 透明度 30%</strong>。
+        <br><br>
+        <strong>调得越透，损失的是「对比度」而不是「清晰度」：</strong><br>
+        字的笔画始终是锐利的（那是 DPI 渲染管的事，已经保证）；
+        但桌面会透进来，字和背景的亮度差变小，<strong>读起来会更吃力</strong>。
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">字号</div>
+          <div class="setting-desc" id="float-fontsize-label">—</div>
+        </div>
+        <div class="setting-side">
+          <input type="range" id="float-fontsize" class="range"
+                 min="6" max="72" step="1" value="10" />
+          <span class="range-value" id="float-fontsize-value">10</span>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">字体</div>
+          <div class="setting-desc">
+            默认四款中文字体：<strong>宋体 / 楷体 / 仿宋 / 黑体</strong>。
+            也可以直接手打别的字体名（例如 微软雅黑、Consolas）。
+            字体没装的话会自动回退成系统默认，不会出错。
+          </div>
+        </div>
+        <div class="setting-side">
+          <select id="float-fontfamily-select" class="mini-select"></select>
+          <input type="text" id="float-fontfamily" class="mini-select"
+                 style="width:130px" value="宋体" placeholder="或手动输入字体名" />
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">文字颜色 / 背景颜色</div>
+          <div class="setting-desc">点色块直接选，改完立刻生效。</div>
+        </div>
+        <div class="setting-side">
+          <input type="color" id="float-fg" value="#1f2933" title="文字颜色" />
+          <input type="color" id="float-bg" value="#ffffff" title="背景颜色" />
+          <input type="color" id="float-accent" value="#2f6fed" title="强调色" />
+        </div>
+      </div>
+
+      <!-- ---- 显示 ---- -->
+      <h3 class="sub-title">显示内容</h3>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">分块方式</div>
+          <div class="setting-desc">
+            按<strong>日期</strong>（今天 / 明天 / 已过期…）、
+            按<strong>优先级</strong>、或按<strong>分类</strong>把任务分块显示。
+          </div>
+        </div>
+        <div class="setting-side">
+          <select id="float-groupby" class="mini-select"></select>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">显示范围</div>
+          <div class="setting-desc">决定窗口里能看到多少任务。</div>
+        </div>
+        <div class="setting-side">
+          <select id="float-scope" class="mini-select"></select>
+        </div>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">总在最前面</div>
+          <div class="setting-desc">关掉它，窗口就会被别的程序盖住（右键菜单里也能切换）。</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="float-ontop-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">显示已完成的任务</div>
+          <div class="setting-desc">默认不显示，列表更清爽。</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="float-showdone-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="setting-row">
+        <div class="setting-label">
+          <div class="setting-name">标出即将提醒的任务</div>
+          <div class="setting-desc">
+            一小时内要提醒的条目会显示 ⏰ 标记；提醒到点时窗口里还会浮出提示。
+          </div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="float-highlight-toggle" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-num" id="float-stat-size">—</div><div class="stat-label">窗口尺寸</div></div>
+        <div class="stat-box"><div class="stat-num" id="float-stat-pos">—</div><div class="stat-label">窗口位置</div></div>
+        <div class="stat-box"><div class="stat-num" id="float-stat-pid">—</div><div class="stat-label">进程号</div></div>
+        <div class="stat-box"><div class="stat-num" id="float-stat-start">—</div><div class="stat-label">启动于</div></div>
+      </div>
+
+      <div class="setting-actions">
+        <button class="btn btn-ghost" type="button" id="btn-float-reset">恢复默认设置</button>
+        <span class="form-msg" id="float-reset-msg"></span>
+      </div>
+
+      <div class="callout">
+        <strong>在悬浮窗里能做什么？</strong><br>
+        · <strong>拖动</strong>标题栏移动位置；拖动<strong>右下角小三角</strong>改大小（位置和大小会自动记住）<br>
+        · <strong>点一行文字</strong>打开编辑框：改标题、优先级、分类、提醒时间<br>
+        · <strong>点最左边的方框</strong>（或双击文字）切换完成状态；<strong>点右键</strong>有更多操作<br>
+        · 底部输入框<strong>回车</strong>即可新建待办；底部两个下拉框可切换「显示范围」和「分块方式」<br>
+        · 点 <strong>✕</strong> 只是把窗口收起来（<strong>不算关闭功能</strong>）——
+        想要它回来，就点上面的「立即显示」
+      </div>
+
+      <div class="callout">
+        <strong>如果窗口没出现？</strong>
+        ① 先点「立即显示」，再看上面「窗口进程」这一行的说明；<br>
+        ② 还是不行就点「打开窗口日志目录」，看 <code>window.log</code> 里的报错原文；<br>
+        ③ 常见原因：这台电脑的 Python 没装 tkinter（安装版自带，不受影响）。
+      </div>
+    </section>
+
     <!-- ================= 关于 ================= -->
     <section class="card">
       <h2>关于</h2>
@@ -264,5 +501,6 @@
   <script src="/static/js/api.js"></script>
   <script src="/static/js/health.js"></script>
   <script src="/static/js/settings.js"></script>
+  <script src="/static/js/floating-settings.js"></script>
 </body>
 </html>

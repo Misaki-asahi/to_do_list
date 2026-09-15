@@ -16,6 +16,8 @@ schemas.py -- 接口数据模型（Pydantic）。
     用户想传也传不进来 —— 这叫"从结构上杜绝"，比事后检查可靠得多。
 """
 
+import re
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app import config
@@ -67,16 +69,29 @@ class TaskCreate(BaseModel):
     @field_validator("due_at", "remind_at")
     @classmethod
     def _check_time_format(cls, value):
-        """时间格式必须是 YYYY-MM-DD HH:MM。
+        r"""把时间"翻译"成规范格式 YYYY-MM-DD HH:MM。
+
+        ★★【v0.4.3：从"只认死格式"改成"看得懂人话"】
+
+            用户原话：「放宽日期格式，如：中英文皆可，
+                      以用户当前系统时间为准，允许输入"某某分钟后"提醒」
+
+            以前这里只认 @@BT@@YYYY-MM-DD HH:MM@@BT@@，别的一律拒绝 ——
+            用户写 "30分钟后" 或 "9月16日" 就会整条待办都存不进去。
+            现在交给 timeutil.parse_flexible() 宽容解析，
+            **存进数据库的永远是规范格式**（决策 3B 的"字符串排序 == 时间排序"不受影响）。
+
+            解析不了才报错，而且报的是**中文的、带例子**的提示。
 
         空字符串统一转成 None，避免数据库里出现 "" 和 NULL 两种"空"。
         """
         if value is None or str(value).strip() == "":
             return None
         text = str(value).strip()
-        if not timeutil.is_valid(text):
-            raise ValueError("时间格式必须是 YYYY-MM-DD HH:MM，例如 2026-09-20 08:30")
-        return text
+        canonical = timeutil.parse_flexible(text)
+        if canonical is None:
+            raise ValueError("看不懂这个时间：%s。%s" % (text, timeutil.describe_accepts()))
+        return canonical
 
 
 class TaskUpdate(BaseModel):
@@ -130,12 +145,14 @@ class TaskUpdate(BaseModel):
     @field_validator("due_at", "remind_at")
     @classmethod
     def _check_time_format(cls, value):
+        """同 TaskCreate：接受"人话"时间，统一转成规范格式（v0.4.3）。"""
         if value is None or str(value).strip() == "":
             return None
         text = str(value).strip()
-        if not timeutil.is_valid(text):
-            raise ValueError("时间格式必须是 YYYY-MM-DD HH:MM，例如 2026-09-20 08:30")
-        return text
+        canonical = timeutil.parse_flexible(text)
+        if canonical is None:
+            raise ValueError("看不懂这个时间：%s。%s" % (text, timeutil.describe_accepts()))
+        return canonical
 
 
 class TaskOut(BaseModel):
@@ -195,6 +212,11 @@ class AutostartRequest(BaseModel):
         False,
         description="开机启动时是否自动打开浏览器。默认 false（静默启动，不打扰）",
     )
+    floating: bool = Field(
+        False,
+        description="开机启动时是否顺便显示桌面悬浮窗（v0.3.0 新增）。"
+                    "开启后启动脚本会带上 --floating 参数",
+    )
 
 
 class PreferenceRequest(BaseModel):
@@ -216,6 +238,111 @@ class OpenFolderRequest(BaseModel):
         ...,
         description="要打开哪个目录：project 项目根 / data 数据 / docs 文档 / exports 导出 / startup 启动文件夹",
     )
+
+
+class FloatingConfigIn(BaseModel):
+    """【修改悬浮窗设置】接口接收的数据（v0.3.0 新增）。
+
+    【关键设计：所有字段都可选，只改你传过的那几个】
+
+        悬浮窗上"拖动一次"只该更新 x / y，
+        "换个字号"只该更新 font_size —— 绝不能顺手把其它设置重置回默认值。
+        这是靠路由层的 model_dump(exclude_unset=True) 实现的：
+            没出现在 JSON 里的字段 -> 不在结果里 -> 不改
+        和 TaskUpdate 是同一套办法（REST API 的经典难题，见上面那段注释）。
+
+    【为什么把范围限制写在 Field(ge=..., le=...) 里？】
+        因为默认值来自 config 常量，写在这里就永远不会和"服务端校验"不一致；
+        真要越界，Pydantic 直接返回 422，前端 api.js 已经会把它翻译成中文。
+    """
+
+    enabled: bool | None = Field(None, description="是否开启悬浮窗（总开关）")
+    autostart: bool | None = Field(None, description="是否随开机自启一起显示")
+    visible: bool | None = Field(None, description="窗口当前是否显示（点关闭只是隐藏）")
+    x: int | None = Field(None, description="窗口左边距（像素，可为负 = 副屏）")
+    y: int | None = Field(None, description="窗口上边距（像素，可为负 = 副屏）")
+    width: int | None = Field(
+        None, ge=config.FLOATING_MIN_WIDTH, le=config.FLOATING_MAX_WIDTH,
+        description="窗口宽度（像素）",
+    )
+    height: int | None = Field(
+        None, ge=config.FLOATING_MIN_HEIGHT, le=config.FLOATING_MAX_HEIGHT,
+        description="窗口高度（像素）",
+    )
+    opacity: float | None = Field(
+        None, ge=config.FLOATING_MIN_OPACITY, le=config.FLOATING_MAX_OPACITY,
+        description="整窗透明度：1.0 完全不透明，0.05 几乎全透",
+    )
+    font_family: str | None = Field(None, max_length=60, description="字体名")
+    font_size: int | None = Field(
+        None, ge=config.FLOATING_MIN_FONT_SIZE, le=config.FLOATING_MAX_FONT_SIZE,
+        description="字号（磅）",
+    )
+    fg_color: str | None = Field(None, description="文字颜色，十六进制如 #1F2933")
+    bg_color: str | None = Field(None, description="背景颜色，十六进制如 #FFFFFF")
+    accent_color: str | None = Field(None, description="强调色（标题栏 / 高优先级）")
+    always_on_top: bool | None = Field(None, description="是否总在最前面")
+    show_completed: bool | None = Field(None, description="是否显示已完成的任务")
+    highlight_reminders: bool | None = Field(None, description="是否标出即将提醒的任务")
+    group_by: str | None = Field(None, description="分块方式：date / priority / category")
+    scope: str | None = Field(None, description="显示范围：active / today / week / all")
+
+    @field_validator("group_by")
+    @classmethod
+    def _check_group_by(cls, value):
+        if value is None:
+            return None
+        if value not in config.FLOATING_GROUP_BY_CHOICES:
+            raise ValueError("分块方式只能是：%s" % " / ".join(
+                config.FLOATING_GROUP_BY_CHOICES))
+        return value
+
+    @field_validator("scope")
+    @classmethod
+    def _check_scope(cls, value):
+        if value is None:
+            return None
+        if value not in config.FLOATING_SCOPE_CHOICES:
+            raise ValueError("显示范围只能是：%s" % " / ".join(
+                config.FLOATING_SCOPE_CHOICES))
+        return value
+
+    @field_validator("fg_color", "bg_color", "accent_color")
+    @classmethod
+    def _check_color(cls, value):
+        """颜色必须写成 #RRGGBB。
+
+        【为什么这里要严格校验？】
+            这个值会被【原样】写进 tkinter 的参数。如果传进来一个乱码，
+            悬浮窗进程会在创建控件时抛异常 —— 那是个独立进程，
+            用户只会看到"窗口打不开了"，却看不到任何原因。
+            在接口这一层挡住，用户就能立刻在设置页看到"颜色格式不对"。
+        """
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not re.fullmatch(r"#[0-9A-Fa-f]{6}", text):
+            raise ValueError("颜色必须写成 #RRGGBB，例如 #FFFFFF")
+        return text.lower()
+
+    @field_validator("font_family")
+    @classmethod
+    def _check_font(cls, value):
+        """字体名不能为空，也不能带引号。
+
+        tkinter 的字体名是直接拼进 Tcl 命令的：
+        带引号或大括号的字符串会被 Tcl 当成语法而不是名字，导致窗口创建失败。
+        所以这里只放行"字母 / 数字 / 空格 / 常见符号"。
+        （和"参数化 SQL"是同一个思路：不要让用户输入变成代码。）
+        """
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            raise ValueError("字体名不能为空")
+        if not re.fullmatch(r"[A-Za-z0-9 \u4e00-\u9fa5._@+\-]{1,60}", text):
+            raise ValueError("字体名里有不支持的字符（不要加引号或大括号）")
+        return text
 
 
 class MessageOut(BaseModel):

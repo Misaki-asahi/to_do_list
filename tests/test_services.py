@@ -163,9 +163,25 @@ class TestSchemaValidation:
         with pytest.raises(Exception):
             make(title="   ")
 
-    def test_bad_time_format_rejected(self):
-        r"""★ 不补零的格式必须被拒绝（BUG-018）。"""
-        for bad in ["2026/09/13", "2026-9-13 8:30", "2026-9-3 08:30"]:
+    def test_loose_time_formats_are_normalized(self):
+        r"""★ 宽松写法要能存进去，而且**存的是补零后的规范格式**（v0.4.3）。
+
+        【为什么行为变了？】
+            原来这几种写法（"2026/09/13"、"2026-9-13 8:30"）会被拒绝，
+            依据是 BUG-018 那句"必须保证库里是定宽格式"。
+            但用户后来要求「放宽日期格式，如：中英文皆可」——
+
+            正确的做法不是"拒绝用户"，而是"**替用户补零**"：
+            存的永远是规范格式，那条排序保证依然成立。
+        """
+        assert make(due_at="2026/09/13 08:30").due_at == "2026-09-13 08:30"
+        assert make(due_at="2026-9-13 8:30").due_at == "2026-09-13 08:30"
+        assert make(due_at="2026-9-3 08:30").due_at == "2026-09-03 08:30"
+        assert make(due_at="2026年9月13日 08:30").due_at == "2026-09-13 08:30"
+
+    def test_unparseable_time_rejected(self):
+        """看不懂的必须拒绝 —— 绝不能猜一个时间默默存进去。"""
+        for bad in ["瞎写的东东", "2026-13-45", "2026-2-30 10:00"]:
             with pytest.raises(Exception):
                 make(due_at=bad)
 

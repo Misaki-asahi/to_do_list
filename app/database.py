@@ -19,6 +19,10 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app import config
 
+from app.core import logging_setup
+
+logger = logging_setup.get_logger("app.database")
+
 # --------------------------------------------------------------------------
 # 1) 数据库连接地址
 #    sqlite:///  后面跟文件路径。
@@ -219,9 +223,11 @@ def checkpoint_wal():
     try:
         with engine.connect() as conn:
             conn.execute(text("PRAGMA wal_checkpoint(TRUNCATE)"))
-    except Exception:
+    except Exception as exc:
         # 合并失败不影响程序退出，数据也不会丢（下次打开会自动恢复）
-        pass
+        # ★ 不许静默失败（AGENTS.md 3.2 / BUG-044）：至少留一行日志
+        logger.debug("这里出错不影响主流程，按可忽略处理：%s", exc, exc_info=True)
+
 
 
 def db_status() -> dict:

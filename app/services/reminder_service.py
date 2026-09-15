@@ -18,8 +18,10 @@ reminder_service.py -- 提醒的业务规则（模块 M5）。
 import threading
 
 from app import config
-from app.core import notifier, timeutil
+from app.core import logging_setup, notifier, timeutil
 from app.repositories import setting_repo, task_repo
+
+logger = logging_setup.get_logger("app.services.reminder")
 
 # ---------------------------------------------------------------------------
 # UI 收件箱
@@ -83,6 +85,15 @@ def scan_and_fire() -> dict:
         if result.get("ok"):
             task_repo.mark_reminded(task.id, timeutil.now_str())
             native_ok += 1
+            # ★ 【v0.4.4】提醒到底发没发出去，必须留下痕迹。
+            #   以前这里一行日志都没有：用户说"我没收到提醒"时，
+            #   日志里查不到任何证据，只能靠猜。
+            logger.info("已发提醒：#%s %s（系统通知已提交给 Windows）",
+                        task.id, task.title)
+        else:
+            logger.warning(
+                "提醒没能发出，本次不标记已提醒、下次扫描会重试：#%s %s —— %s",
+                task.id, task.title, result.get("message"))
 
         # ---- 3. 放进 UI 收件箱（无论系统通知成没成功）----
         # 页面打开时就能看到带按钮的提示；系统通知失败时这也是唯一的提醒途径。

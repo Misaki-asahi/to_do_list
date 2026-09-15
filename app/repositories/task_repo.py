@@ -109,8 +109,24 @@ def list_tasks(status: str = None, keyword: str = None, limit: int = None, offse
             stmt = stmt.where(Task.status == status)
 
         if keyword:
-            like = "%" + keyword + "%"
-            stmt = stmt.where(Task.title.like(like) | Task.description.like(like))
+            # ★★【必须转义 LIKE 的元字符（BUG-041）】
+            #   在 SQL 的 LIKE 里，% 和 _ 是通配符：
+            #       % = 任意多个字符        _ = 任意一个字符
+            #   用户想搜"完成度 100%"时，那个 % 会被当成"任意字符"——
+            #   于是搜一个 % 就把【全部任务】都搜出来了（实测 31 条全中）。
+            #
+            #   注意：这【不是】SQL 注入（参数化查询已经挡住了注入），
+            #   而是"元字符语义"问题 —— 安全（不让输入变成代码）和
+            #   正确（让输入被当成普通数据）是要分别处理的两件事。
+            #
+            #   转义顺序很重要：必须**先转义反斜杠本身**，
+            #   否则后面插入的那些反斜杠会被自己再转义一次。
+            escaped = (keyword.replace("\\", "\\\\")
+                              .replace("%", "\\%")
+                              .replace("_", "\\_"))
+            like = "%" + escaped + "%"
+            stmt = stmt.where(Task.title.like(like, escape="\\")
+                              | Task.description.like(like, escape="\\"))
 
         # 注意：SQLite 里字符串排序就是时间排序（因为格式是"年-月-日 时:分"）
         stmt = stmt.order_by(Task.status.asc(), Task.due_at.is_(None), Task.due_at.asc(), Task.id.desc())

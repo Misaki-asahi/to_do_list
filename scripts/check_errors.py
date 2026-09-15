@@ -173,15 +173,60 @@ if log_file.exists():
     # 【重要】同一个异常只能记一次，否则日志会被撑爆
     n_500_logs = text.count("未处理的异常")
     check("500 异常只被记录一次", n_500_logs == 1, "实际记录了 %d 次" % n_500_logs)
-    # 数"堆栈头"而不是数异常文本 ——
-    # 异常文本在堆栈里会自然出现两次（源码行 + 异常信息），是同一条日志里的内容
-    n_tracebacks = text.count("Traceback (most recent call last)")
-    check("完整堆栈只记录一次", n_tracebacks == 1, "实际有 %d 个堆栈" % n_tracebacks)
+    # 【为什么不数 "Traceback (most recent call last)" 的次数？】
+    #   这个次数会随"应用挂了几个 http 中间件"变化：
+    #   Starlette 在中间件 ≥2 个时会把异常包进 ExceptionGroup，
+    #   同一个异常的堆栈里就会出现多次这个字样 —— 那是【同一个异常的展开】，
+    #   不是"被记录了两次"。所以改成数"那条日志记录"本身（上面第 174 行已经数过），
+    #   这里只确认堆栈确实写进去了。
+    check("堆栈里有真正的异常现场", "RuntimeError" in text and "Traceback" in text)
     check("没有 httpx 的刷屏日志", "HTTP Request: " not in text)
     print()
     print("    --- 日志最后 12 行 ---")
     for line in lines[-12:]:
         print("    " + line[:150])
+
+print()
+print("--- 10) 跨站请求防护（BUG-043 的守卫）---")
+# 【为什么要有这一节？】
+#   服务只监听 127.0.0.1，但【你自己浏览器里打开的任意网页】可以向本机服务发请求，
+#   而不带请求体的 POST 属于浏览器的"简单请求"、不会触发预检 ——
+#   也就是说一个恶意网页本来就能把悬浮窗关掉、甚至结束整个程序。
+#   修法是"带 Origin 且非本机来源就 403"。这里把这条规则钉死。
+with TestClient(app, raise_server_exceptions=False) as client:
+    evil = {"Origin": "http://evil.example", "Sec-Fetch-Site": "cross-site"}
+    r = client.post("/api/floating/window/close", headers=evil)
+    check("恶意来源的 POST -> 403", r.status_code == 403, r.status_code)
+    r = client.post("/api/settings/shutdown", headers=evil)
+    check("恶意来源调 shutdown -> 403（程序没被杀掉）", r.status_code == 403, r.status_code)
+    r = client.get("/api/health", headers={"Origin": "http://evil.example"})
+    check("恶意来源的 GET -> 403", r.status_code == 403, r.status_code)
+    r = client.get("/api/health", headers={"Origin": "null"})
+    check("Origin: null（本地文件页面）-> 403", r.status_code == 403, r.status_code)
+    r = client.get("/api/health", headers={"Origin": "http://127.0.0.1:%d" % config.PORT,
+                                           "Sec-Fetch-Site": "same-origin"})
+    check("本机自己的来源 -> 放行", r.status_code == 200, r.status_code)
+    r = client.get("/api/health")
+    check("不带 Origin（命令行 / 悬浮窗进程）-> 放行", r.status_code == 200, r.status_code)
+
+print()
+print("--- 11) 代码里不许有 except: pass（BUG-044 的守卫）---")
+# 【为什么要把它变成自动检查？】
+#   AGENTS.md 3.2 早就写着"except ...: pass 一律不许写"，
+#   可规则定了之后没人回头清存量，一天后验收仍然有 49 处 ——
+#   **约定不配检查，就只是愿望。** 所以把它钉在这里。
+import re as _re                                       # noqa: E402
+
+# 匹配"except 子句 + 若干注释 + 只有一句 pass"的形状
+_pass_pat = _re.compile(
+    r"^[ ]*except [^\n:]+:[^\n]*\n(?:[ ]*#[^\n]*\n)*[ ]*pass[ ]*$", _re.M)
+_offenders = []
+for _py in sorted((PROJECT_ROOT / "app").rglob("*.py")):
+    _src = _py.read_text(encoding="utf-8")
+    for _m in _pass_pat.finditer(_src):
+        _offenders.append("%s:%d" % (_py.relative_to(PROJECT_ROOT),
+                                     _src[:_m.start()].count(chr(10)) + 1))
+check("没有 except: pass", not _offenders, "、".join(_offenders[:8]))
 
 print()
 print("=" * 76)

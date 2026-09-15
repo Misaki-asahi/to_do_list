@@ -41,7 +41,7 @@ echo.
     --add-data "app/static;app/static" ^
     --add-data "app/templates;app/templates" ^
     --hidden-import app.main ^
-    --exclude-module tkinter ^
+    --hidden-import app.gui.window ^
     --exclude-module matplotlib ^
     --exclude-module numpy ^
     --exclude-module PIL ^

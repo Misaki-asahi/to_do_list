@@ -28,6 +28,10 @@ from pathlib import Path
 
 from app import config
 
+from app.core import logging_setup
+
+logger = logging_setup.get_logger("app.core.backup")
+
 
 def _timestamp() -> str:
     """给备份文件用的时间戳，例如 20260912_233045。"""
@@ -139,8 +143,10 @@ def prune(keep: int = None) -> int:
         try:
             Path(item["path"]).unlink()
             removed += 1
-        except OSError:
-            pass
+        except OSError as exc:
+            # ★ 不许静默失败（AGENTS.md 3.2 / BUG-044）：至少留一行日志
+            logger.debug("文件 / 系统调用失败，按可忽略处理：%s", exc, exc_info=True)
+
     return removed
 
 

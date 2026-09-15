@@ -48,10 +48,30 @@ class TestCreate:
         assert r.status_code == 400
         assert r.json()["type"] == "business_error"
 
-    def test_unpadded_time_is_422(self, client):
-        r"""★ BUG-018 的回归测试：不补零的时间必须被拒绝。"""
+    def test_unpadded_time_is_normalized_not_rejected(self, client):
+        r"""★ 不补零的时间：**接受，但必须被规范化后再入库**（v0.4.3 改了行为）。
+
+        【为什么从"拒绝"改成"接受并规范化"？】
+            BUG-018 当时的结论是"拒绝不补零的输入"，理由是
+            "一旦库里混进 '2026-9-13 8:30'，字符串排序就不等于时间排序了"。
+            那个**担心是对的**，但"拒绝"是过度的解法 ——
+            用户写 "2026-9-1 8:30" 是很自然的，凭什么不让存？
+
+            真正要保住的是"**库里存的永远是定宽格式**"，
+            而不是"用户必须自己补零"。所以现在改成：
+            **解析 -> 补零 -> 存规范格式**，那条排序保证一点没丢。
+
+            这条测试就是在守这个：请求要成功，而且**存下来的是补零后的**。
+        """
         r = client.post("/api/tasks", json={"title": "x", "due_at": "2099-1-1 8:30"})
+        assert r.status_code == 201, r.text
+        assert r.json()["due_at"] == "2099-01-01 08:30", "必须补零后再入库"
+
+    def test_unparseable_time_is_422(self, client):
+        """真正看不懂的时间仍然要拒绝（不能瞎猜一个存进去）。"""
+        r = client.post("/api/tasks", json={"title": "x", "due_at": "瞎写的东东"})
         assert r.status_code == 422
+        assert "看不懂" in r.text
 
     def test_title_too_long_is_422(self, client):
         r = client.post("/api/tasks", json={"title": "x" * 300})

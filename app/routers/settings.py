@@ -23,12 +23,20 @@ from app.schemas import (AutostartRequest, MessageOut, OpenFolderRequest,
                          PreferenceRequest)
 from app.services import setting_service
 
+from app.core import logging_setup
+
+logger = logging_setup.get_logger("app.routers.settings")
+
 # 允许通过接口修改的偏好项白名单，以及每一项的合法取值。
 # 【为什么要白名单？】这个接口能往设置表里写东西，
 # 不限制的话就能写入任意键、任意值，把配置搞乱。只放开确实需要的那几个。
 EDITABLE_PREFERENCES = {
     "notify_sound_enabled": {"0", "1"},
     "notify_app_id_mode": {"auto", "system", "own"},
+    # v0.3.0：用户在设置页里表达"我点击开启悬浮窗时，要不要顺便也让它开机自启"。
+    # 它本身不会去动启动文件夹（那是 POST /api/settings/autostart 的职责），
+    # 只是记住一个偏好，供悬浮窗的守护线程读。
+    "autostart_floating": {"0", "1"},
 }
 
 router = APIRouter(prefix="/api/settings", tags=["设置"])
@@ -58,7 +66,8 @@ def set_autostart(payload: AutostartRequest):
     所以这里不用 HTTP 状态码表示失败，而是统一返回 200 + {ok: false, message: ...}，
     让前端把失败原因显示给用户 —— 这比抛一个 500 更友好。
     """
-    return setting_service.set_autostart(payload.enabled, payload.open_browser)
+    return setting_service.set_autostart(payload.enabled, payload.open_browser,
+                                        payload.floating)
 
 
 @router.post(
@@ -84,8 +93,10 @@ def shutdown():
         time.sleep(0.8)                    # 留时间让响应发出去
         try:
             database.checkpoint_wal()      # 退出前把 WAL 日志合并回主库
-        except Exception:                  # noqa: BLE001
-            pass
+        except Exception as exc:                    # noqa: BLE001
+            # ★ 不许静默失败（AGENTS.md 3.2 / BUG-044）：至少留一行日志
+            logger.debug("这里出错不影响主流程，按可忽略处理：%s", exc, exc_info=True)
+
         os._exit(0)                        # 直接退出进程（后台提醒线程也会一起结束）
 
     threading.Thread(target=_exit_soon, daemon=True).start()

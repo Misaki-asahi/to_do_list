@@ -101,7 +101,12 @@ def setup(level=None) -> logging.Logger:
     _configured = True
     root.info("=" * 66)
     root.info("%s v%s 启动", config.APP_NAME, config.APP_VERSION)
-    root.info("数据目录: %s", config.BASE_DIR)
+    # ★ 【v0.4.4 修】这一行以前印的是 BASE_DIR，标签却写着「数据目录」——
+    #   用 TODO_DATA_DIR 覆盖过的时候两者不是一个地方。
+    #   本轮排查打包版时被它误导过一次（"数据目录怎么不是我以为的那个"），
+    #   所以改成印真正的 DATA_DIR，并把 BASE_DIR 也单独印一行，不留歧义。
+    root.info("数据目录: %s", config.DATA_DIR)
+    root.info("程序目录: %s", config.BASE_DIR)
     root.info("打包模式: %s", "是（exe）" if config.FROZEN else "否（源码）")
     root.info("=" * 66)
     return root

@@ -43,7 +43,7 @@ APP_ID = "OfflineTodoList"
 #   它曾经漏改过：应用已经是 0.2.0，安装界面却还显示 0.1.0。
 #   安装界面显示的版本，是用户判断"我装的到底是不是新版"的第一依据，
 #   写错了会直接误导人，所以每次发版都要核对一遍。
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.4.5"
 EXE_NAME = "OfflineTodoList.exe"
 
 # 装完之后在安装目录写一个 VERSION 文件，记录"装的是哪个版本"。

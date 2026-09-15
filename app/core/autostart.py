@@ -83,7 +83,7 @@ def target_dir() -> Path:
     return Path(config.BASE_DIR)
 
 
-def _launcher_content(open_browser: bool) -> str:
+def _launcher_content(open_browser: bool, floating: bool = False) -> str:
     r"""
     生成 .vbs 文件的内容。
 
@@ -97,11 +97,23 @@ def _launcher_content(open_browser: bool) -> str:
         打包成 exe：直接运行那个 exe 就行（它本身不带黑窗口），
                     传 --no-browser 表示"后台启动，别弹浏览器"
 
+    【v0.3.0 新增：floating 参数 —— 开机自启时顺便显示桌面悬浮窗】
+
+        加了它之后，命令行末尾会多一个 --floating。
+        程序收到这个参数时【不会】再起一个服务（端口只有一个），
+        而是去连已经跑起来的服务、把悬浮窗画出来。
+        （路径见 app/services/floating_service.py 的 _spawn()。）
+
+        为什么要放在自启脚本里，而不是"让服务自己去开窗口"？
+            因为服务本来就有一个守护线程负责"该开就开"。
+            这里写进去只是为了：**桌面出现之前就把窗口准备好**，
+            用户一登录就能看见待办，而不用等守护线程 3 秒后再检查一次。
+
     VBScript 的字符串里，一个双引号要写成两个 ""
     （注意：下面注释里用单引号示意，避免和三引号打架）
 
     拼出来的实际内容是：
-        shell.Run  ' 引号 + exe 路径 + 引号 + --no-browser' , 0, False
+        shell.Run  ' 引号 + exe 路径 + 引号 + --no-browser --floating' , 0, False
     """
     lines = [
         "' Offline Todo List - auto start launcher.",
@@ -113,20 +125,35 @@ def _launcher_content(open_browser: bool) -> str:
         'Set fso = CreateObject("Scripting.FileSystemObject")',
     ]
 
+    # ★【v0.4.2：出厂默认是"静默启动"（open_browser=False）】
+    #   用户原话：「自启动静默启动，不要开启浏览器」，
+    #   后面又补充：「不需要拿掉，用户出厂设置打开自启动但不打开浏览器即可」。
+    #
+    #   所以：能力【保留】（设置页里那个"启动时同时打开浏览器"开关还在，
+    #   用户想要可以自己打开），但**默认值一定是 False** ——
+    #   开机时程序在后台安静地跑起来，不会弹出浏览器窗口。
+    #   真正保证"出厂静默"的地方有两处：
+    #     · 本函数的参数默认值 False
+    #     · ensure_autostart_by_default() 显式传 False
+    #
+    # 命令行末尾要加的开关
+    suffix = "" if open_browser else " --no-browser"
+    if floating:
+        suffix += " --floating"
+
     if config.FROZEN:
         exe = Path(sys.executable).resolve()
         # 路径外面包一层双引号（防止路径里有空格），在 VBS 里双引号要写成两个
         quoted = '""%s""' % str(exe)
-        suffix = "" if open_browser else " --no-browser"
         run_line = 'shell.Run "%s%s", 0, False' % (quoted, suffix)
         check_line = 'If Not fso.FileExists("%s") Then WScript.Quit 1' % str(exe)
         work_line = 'shell.CurrentDirectory = "%s"' % str(exe.parent)
         what = "the app executable"
     else:
         if open_browser:
-            run_line = 'shell.Run "cmd /c """ & projectDir & "\\start.bat""", 0, False'
+            run_line = 'shell.Run "cmd /c """ & projectDir & "\\start.bat""%s", 0, False' % suffix
         else:
-            run_line = 'shell.Run "cmd /c """ & projectDir & "\\start_silent.bat""", 0, False'
+            run_line = 'shell.Run "cmd /c """ & projectDir & "\\start_silent.bat""%s", 0, False' % suffix
         check_line = 'If Not fso.FileExists(projectDir & "\\run.py") Then WScript.Quit 1'
         work_line = "shell.CurrentDirectory = projectDir"
         what = "the project folder"
@@ -139,9 +166,11 @@ def _launcher_content(open_browser: bool) -> str:
     return "\r\n".join(lines) + "\r\n"
 
 
-def enable(open_browser: bool = False) -> dict:
+def enable(open_browser: bool = False, floating: bool = False) -> dict:
     """
     开启开机自启：往启动文件夹写一个 .vbs。
+
+    floating=True 表示"开机自启时顺便把桌面悬浮窗也显示出来"。
 
     返回状态字典（不管成功失败都返回，让接口层统一处理）。
     """
@@ -151,11 +180,14 @@ def enable(open_browser: bool = False) -> dict:
     target = launcher_path()
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        content = _launcher_content(open_browser)
+        content = _launcher_content(open_browser, floating)
         # newline="" 表示不要做任何换行符转换，直接用我们拼好的 \r\n
         with open(target, "w", encoding="ascii", newline="") as f:
             f.write(content)
-        return {"ok": True, "message": "已开启开机自启"}
+        message = "已开启开机自启"
+        if floating:
+            message += "（并会在登录后显示桌面悬浮窗）"
+        return {"ok": True, "message": message}
     except OSError as exc:
         return {"ok": False, "message": "写入失败：%s" % exc}
 
@@ -203,22 +235,60 @@ def status() -> dict:
         "startup_dir": str(startup_dir()) if supported else "",
         "project_dir": str(config.BASE_DIR),
         "open_browser": _read_open_browser_flag(),
+        # v0.3.0：自启脚本里有没有带 --floating（即"登录后自动显示桌面悬浮窗"）
+        "floating": _read_floating_flag(),
         # 给界面用的一句话说明
         "summary": (
             "已开启：下次登录 Windows 会自动在后台启动服务"
+            + ("，并显示桌面悬浮窗" if _read_floating_flag() else "")
             if enabled else
             "未开启"
         ) if supported else "当前系统不支持（仅 Windows）",
     }
 
 
+def launcher_mtime() -> float:
+    """
+    自启脚本的最后修改时间（不存在则 0）。
+
+    【它有什么用？】
+        用来发现"用户在启动文件夹里动了手脚"——
+        比如手动改了 .vbs，或者它被别的清理软件删掉了。
+        悬浮窗的服务端会记住这个时间戳，一旦对不上就重新写一份自启脚本，
+        保证"登录后自动显示悬浮窗"这件事真的会发生（见 floating_service）。
+    """
+    target = launcher_path()
+    try:
+        return target.stat().st_mtime if target.exists() else 0.0
+    except OSError:
+        return 0.0
+
+
 def _read_open_browser_flag() -> bool:
     """读取 .vbs 里用的是 start.bat（开浏览器）还是 start_silent.bat（不开）。"""
+    text = _read_launcher_text()
+    return "start.bat" in text or "--no-browser" not in text
+
+
+def _read_floating_flag() -> bool:
+    """
+    读取 .vbs 里有没有 --floating（即"登录后显示悬浮窗"）。
+
+    【为什么用"读文件"而不是"读设置"？】
+        因为启动文件夹里那个 .vbs 才是【系统真正会执行的东西】——
+        它才是事实来源。设置表里记的只是"用户上次的选择"，
+        两者万一不一致（用户手改过文件），显示按钮状态就该以文件为准，
+        否则设置页会显示一个"其实不会发生"的状态，那是最误导人的。
+    """
+    return "--floating" in _read_launcher_text()
+
+
+def _read_launcher_text() -> str:
+    """把 .vbs 内容读出来（读不到就返回空字符串）。"""
     target = launcher_path()
     if not target.exists():
-        return False
+        return ""
     try:
-        text = target.read_text(encoding="ascii", errors="ignore")
-        return "start.bat" in text
+        return target.read_text(encoding="ascii", errors="ignore")
     except OSError:
-        return False
+        return ""

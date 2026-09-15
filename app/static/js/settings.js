@@ -72,6 +72,7 @@
 
   function renderAutostart(info) {
     autoToggle.checked = info.enabled;
+    // 值来自自启脚本本身（.vbs 里有没有 --no-browser），所以它反映的是"实际会怎样"
     browserToggle.checked = info.open_browser;
     autoSummary.textContent = info.summary;
     autoPath.textContent = info.launcher_path || '（当前系统不支持）';
@@ -204,6 +205,9 @@
   async function onToggleBrowser() {
     // "启动时打开浏览器"这个选项，只有在自启已开启时才需要立刻生效；
     // 没开启的话，记住偏好即可，等开启时一起写入。
+    //
+    // ★ v0.4.2 说明：这一项【出厂默认是关的】（用户要求"自启动静默启动"），
+    //   但功能保留 —— 用户想开机就看到网页界面时，自己把它打开即可。
     if (!autoToggle.checked) {
       showMsg('已记住偏好，开启自启时会一起生效', false);
       return;

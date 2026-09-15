@@ -24,6 +24,7 @@ from app.core import backup as backup_core
 from app.core import errors as app_errors
 from app.core import logging_setup, notifier, scheduler
 from app.routers import calendar as calendar_router
+from app.routers import floating as floating_router
 from app.routers import reminders as reminders_router
 from app.routers import settings as settings_router
 from app.routers import tasks as tasks_router
@@ -61,6 +62,18 @@ async def lifespan(app: FastAPI):
     if result.get("ok"):
         print("[备份] " + result.get("message", ""))
 
+    # 开机自启"默认开启"：没有启动项、且用户没主动关过，就补建一个（v0.4.2）
+    # 【为什么放在启动时做？】它是"配一次、长期用"的东西，
+    #   只在设置页等用户去点，就等于默认关闭 —— 那就不叫"默认开启"了。
+    try:
+        from app.services import setting_service
+        auto = setting_service.ensure_autostart_by_default()
+        if auto.get("changed"):
+            print("[自启] " + auto.get("reason", ""))
+    except Exception as exc:                      # noqa: BLE001 - 不能挡住启动
+        logging_setup.get_logger("app").warning(
+            "检查默认开机自启时出错（不影响其它功能）：%s", exc, exc_info=True)
+
     # 准备通知的应用身份（注册 + 判断能否使用自有身份）
     # 为什么要放在启动时做？因为注册后 Windows 需要时间刷新身份缓存，
     # 启动时就注册，等第一条提醒真的到点时身份多半已经被系统认下了。
@@ -74,9 +87,33 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     print("[提醒] 后台提醒线程已启动（每 %d 秒检查一次）" % config.REMINDER_SCAN_SECONDS)
 
+    # 启动悬浮窗守护线程（v0.3.0 新增）。
+    #
+    # 【为什么叫"守护"？】它的职责只有一件事：让"设置里的开关"
+    # 和"桌面上真的有没有那个窗口"保持一致。
+    # 用户在设置页打开开关 -> 它拉起窗口；关掉 -> 它让窗口退出；
+    # 窗口因为任何原因死掉了 -> 它把窗口重新拉起来。
+    #
+    # 【为什么不能只靠"设置页点一下"？】因为窗口可能因为内存不足、
+    # 被任务管理器结束、屏幕分辨率变化等原因意外退出。
+    # 有一个东西一直盯着，用户才能放心地把开关开着。
+    from app.services import floating_service
+
+    # 先做一次设置迁移（把旧版本的"百分比透明度"换算成小数）。
+    # 【为什么要放在启动时？】因为旧值会让窗口开不出来（见函数的说明），
+    # 必须在任何人读到这些设置【之前】修好 —— 守护线程稍后就会去读它们。
+    migration = floating_service.migrate_legacy_settings()
+    if migration.get("migrated"):
+        print("[悬浮窗] 已升级旧设置：%s" % migration)
+
+    floating_service.start_supervisor()
+
     yield
     # ---- 以下是服务关闭时执行的代码 ----
     scheduler.stop()
+    # 关窗口要用"请它退出"的方式（见 floating_service.stop_window 的说明）：
+    # 直接杀掉的话，用户刚拖动过的位置就来不及保存了。
+    floating_service.stop_supervisor()
     # ---- yield 之后是"服务关闭时"要执行的代码 ----
     # 把 WAL 日志合并回主数据库并清空它。
     # 不做这件事也不会丢数据（SQLite 下次打开会自动恢复），
@@ -124,6 +161,87 @@ async def log_requests(request: Request, call_next):
         level("%s %s -> %s （%.0f ms）", request.method, path,
               response.status_code, cost)
     return response
+
+
+# ===========================================================================
+# 跨站请求防护（v0.3.4 新增，修 BUG-043）
+# ===========================================================================
+# 【为什么需要它？】
+#   服务只监听 127.0.0.1，所以"外面的人连不上" —— 但【你自己浏览器里打开的
+#   任意网页】可以向你本机的这个服务发请求，因为浏览器是站在你这边发的。
+#
+#   更麻烦的是：不带请求体的 POST 属于浏览器的"简单请求"，**不触发跨域预检**，
+#   浏览器根本不拦。实测（带 Origin: http://evil.example）：
+#       POST /api/floating/window/close  -> 200  悬浮窗被关掉
+#       POST /api/settings/shutdown      -> 200  整个程序退出
+#   而带 JSON 体的接口（比如 PATCH /api/floating/config）反而会被浏览器拦住
+#   （JSON 的 Content-Type 会触发预检）—— 所以"看起来更危险的接口"其实更安全。
+#
+# 【判断依据】
+#   浏览器发跨站请求时一定带 Origin；现代浏览器还会带 Sec-Fetch-Site。
+#   两者都没有的请求（命令行 curl、悬浮窗进程的 urllib、本机的其它程序）
+#   一律放行 —— 它们本来就在这台机器上，拦它们没有意义，
+#   反而会把"用 curl 调试接口"这种正常用法挡掉。
+# ===========================================================================
+
+
+def _origin_is_allowed(origin: str) -> bool:
+    """这个 Origin 是不是"本机自己"的来源。"""
+    import urllib.parse
+
+    if not origin:
+        return True                      # 没有这个头 = 不是浏览器发的，放行
+    if origin == "null":
+        # file:// 页面、沙箱 iframe 会发 "null"。那不是我们的页面，一律拒。
+        return False
+    try:
+        parsed = urllib.parse.urlparse(origin)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").strip("[]")
+    if host not in config.ORIGIN_ALLOWED_HOSTS:
+        return False
+    # ★★ 【v0.4.5 收紧】以前只比对主机名，于是"本机任意端口的网页"都算自己人 ——
+    #    比如你在本机跑着另一个开发服务器（127.0.0.1:5173），
+    #    它上面的页面就能调我们的接口（简单 POST 不触发预检，浏览器不拦）。
+    #    现在连端口一起比：只有"我们自己这个服务"的页面才算自己人。
+    #    为什么端口用 config.PORT：页面就是从这个端口打开的，Origin 必然带它。
+    try:
+        port = parsed.port
+    except ValueError:
+        return False
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+    return port == config.PORT
+
+
+@app.middleware("http")
+async def guard_cross_site(request: Request, call_next):
+    """
+    挡掉"从别的网站发过来"的写请求。
+
+    ⚠️ 这里【只】看请求头，不看接口 —— 也就是说它对所有接口一视同仁。
+       这是有意的：靠"记住哪些接口危险"来防护，迟早会漏掉新加的接口。
+    """
+    if config.CHECK_REQUEST_ORIGIN:
+        origin = request.headers.get("origin", "")
+        site = request.headers.get("sec-fetch-site", "")
+        blocked = (origin and not _origin_is_allowed(origin)) or site == "cross-site"
+        if blocked:
+            logging_setup.get_logger("security").warning(
+                "已拒绝跨站请求 %s %s（Origin=%r Sec-Fetch-Site=%r）",
+                request.method, request.url.path, origin, site)
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "这个请求来自其它网站，已被拒绝。"
+                              "如果你是在调试接口，请直接用浏览器打开本机地址。",
+                    "type": "cross_site_blocked",
+                },
+            )
+    return await call_next(request)
 
 
 # ===========================================================================
@@ -211,6 +329,7 @@ app.include_router(tasks_router.router)
 app.include_router(reminders_router.router)
 app.include_router(calendar_router.router)
 app.include_router(settings_router.router)
+app.include_router(floating_router.router)
 
 
 def _page(filename: str) -> FileResponse:

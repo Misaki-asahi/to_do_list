@@ -427,10 +427,23 @@ def test_api_search_excludes_deleted(client, sample_task):
     assert client.get("/api/tasks", params={"keyword": sample_task["title"]}).json() == []
 
 
-def test_api_calendar_excludes_deleted(client):
-    """日历里不显示已删除的任务。"""
-    today = timeutil.date_part(timeutil.now_str())
-    resp = client.post("/api/tasks", json={"title": "日历任务", "due_at": today + " 23:59"})
+def test_api_calendar_excludes_deleted(client, future_due_today_clock):
+    """
+    日历里不显示已删除的任务。
+
+    【★ 这里的 due_at 为什么是算出来的，而不是写死 "23:59"？】
+        原来的写法是 `today + " 23:59"` —— 白天跑没问题，
+        **23:59 之后再跑就会被"截止时间不能早于当前时间"拒绝**，测试假失败。
+        现在改成 `future_due_today_clock()`：它保证给出一个"今天之内、
+        且还没到"的时刻；实在没有（23:56 之后）就诚实地 skip。
+    """
+    try:
+        due_at = future_due_today_clock()
+    except RuntimeError as exc:
+        import pytest
+        pytest.skip(str(exc))
+
+    resp = client.post("/api/tasks", json={"title": "日历任务", "due_at": due_at})
     assert resp.status_code == 201, resp.text
     tid = resp.json()["id"]
 

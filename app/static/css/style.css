@@ -951,6 +951,124 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .backup-item .bk-size { color: var(--text-muted); font-family: Consolas, monospace; }
 
 
+/* ==========================================================================
+   桌面悬浮窗的设置区（v0.3.0 新增）
+
+   【为什么这些样式写在 style.css 里而不是单独一个文件？】
+     因为设置页本来就只加载这一个 CSS。为了十几行样式再开一个文件、
+     多一次网络请求，不划算。（真正值得拆的是 JS —— 见 floating-settings.js
+     里那段关于"模块边界"的说明。）
+   ========================================================================== */
+
+/* ---------- 卡片里的小标题 ---------- */
+.sub-title {
+  margin: 22px 0 6px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--border);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .3px;
+}
+
+/* ---------- 滑块（透明度 / 字号） ---------- */
+/*
+   【为什么要自定义 range 的外观？】
+     浏览器默认的滑块又细又灰，在设置页面里像一根装饰线 ——
+     用户根本看不出"这里可以拖"。加粗轨道 + 强调色滑块头之后，
+     它的"可拖动感"才够强。
+     这段写法对 Chromium/Edge 与 Firefox 各写一份，
+     因为两家对滑块内部结构的伪元素命名不一样（业界通病，没有统一标准）。
+*/
+.range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 170px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--primary) 0%, var(--border) 0%);
+  outline: none;
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .25);
+  cursor: pointer;
+}
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+}
+
+/* ---------- 滑块右侧的实时数值 ---------- */
+/*
+   为什么要在滑块旁边显示数字？
+     因为"透明度"这类值是看不见摸不着的：光看滑块的位置，
+     说不清现在是 70% 还是 75%。把数字写出来，
+     用户才能确认"我想要的值"和"现在的值"是不是一回事，
+     也才能在下次想调回来时有据可查。
+   固定宽度是为了让数字位数变化时（9 -> 10）滑块不会左右跳动。
+*/
+.range-value {
+  display: inline-block;
+  min-width: 42px;
+  text-align: right;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-family: Consolas, "Courier New", monospace;
+}
+
+/* ---------- 取色器（三个色块） ---------- */input[type="color"] {
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+}
+input[type="color"]::-webkit-color-swatch-wrapper { padding: 3px; }
+input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+
+/* ---------- 配色主题的色块按钮 ---------- */
+/*
+   每个色块直接用主题自己的背景色 + 文字色来渲染自己，
+   于是"点之前就能看到效果"—— 这叫"所见即所得"的选择器，
+   比一堆写着"主题A / 主题B"的按钮好用得多。
+*/
+.theme-chip {
+  font-family: inherit;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform .08s ease;
+}
+.theme-chip:hover { transform: translateY(-1px); }
+.theme-chip:active { transform: translateY(0); }
+
+/* ---------- 警告色的圆点（"已开启但窗口没跑起来"） ---------- */
+.dot.warn { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245, 158, 11, .18); }
+
+/* 窄屏时把设置行右侧的东西换行，别挤成一团 */
+@media (max-width: 620px) {
+  .setting-side { flex-wrap: wrap; justify-content: flex-end; }
+  .range { width: 120px; }
+}
+
+
 
 
 

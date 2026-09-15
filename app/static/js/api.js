@@ -270,6 +270,56 @@ const api = {
   emptyTrash: function () {
     return request('/api/tasks/trash?confirm=true', { method: 'DELETE' });
   },
+
+  /* ======================================================================
+     桌面悬浮窗（v0.3.0 新增）
+
+     【这些接口是给谁用的？】
+       给【设置页】用的。悬浮窗自己那个进程走的是另一条路
+       （app/gui/client.py），因为它是桌面程序，不在浏览器里。
+
+     【为什么改设置要用 PATCH？】
+       因为它只改你传过去的那几个字段。
+       如果用"整份替换"的思路，那么悬浮窗上"拖动一次位置"
+       就可能把用户的字号、颜色、分块方式全都重置回默认值。
+       —— 这和列表页"修改待办"用 PATCH 是同一个道理。
+     ====================================================================== */
+
+  // 悬浮窗的全部设置与运行状态
+  getFloating: function () {
+    return request('/api/floating');
+  },
+
+  // 改设置（只传要改的字段，例如 { opacity: 0.8 }）
+  setFloating: function (changes) {
+    return request('/api/floating/config', { method: 'PATCH', body: changes });
+  },
+
+  // 一键套用配色主题（名字见 getFloating() 返回的 themes）
+  setFloatingTheme: function (name) {
+    return request('/api/floating/theme?name=' + encodeURIComponent(name),
+                   { method: 'POST' });
+  },
+
+  // 恢复默认设置（只重置外观和位置，不会碰任何待办数据）
+  resetFloating: function () {
+    return request('/api/floating/reset', { method: 'POST' });
+  },
+
+  // 立即显示（把隐藏了的窗口叫回来）
+  showFloating: function () {
+    return request('/api/floating/window/show', { method: 'POST' });
+  },
+
+  // 重启窗口（界面卡住时用）
+  restartFloating: function () {
+    return request('/api/floating/window/restart', { method: 'POST' });
+  },
+
+  // 隐藏窗口（等价于点窗口右上角的 ✕）
+  hideFloating: function () {
+    return request('/api/floating/window/close', { method: 'POST' });
+  },
 };
 
 // 挂到 window 上，其它 JS 文件才能直接用 api.xxx()

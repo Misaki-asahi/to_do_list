@@ -72,3 +72,15 @@ class ValidationError(AppError):
 
     status_code = 422
     error_type = "validation_error"
+
+
+class ForbiddenError(AppError):
+    """没有通过访问令牌的校验（v0.3.0 新增，悬浮窗的"窗口专用"接口在用）。
+
+    返回 403 —— 语义是"我知道你是谁，但你不许做这件事"，
+    和 401（"你还没告诉我你是谁"）要区分开：
+    这里的问题不是"没登录"，而是"令牌不对"。
+    """
+
+    status_code = 403
+    error_type = "forbidden"
